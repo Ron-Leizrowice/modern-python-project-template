@@ -1,0 +1,66 @@
+[build-system]
+requires = [ "hatchling", "uv-dynamic-versioning>=0.7.0" ]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+
+[project]
+name = "python-project-template"
+dynamic = [ "version" ]
+description = "A template for Python projects using modern tooling and best practices."
+authors = [
+    { name = "Ron Leizrowice", email = "ron.leizrowice@protonmail.com" },
+]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [ ]
+
+[dependency-groups]
+dev = [
+  "pip>=25",
+  "pytest>=8",
+  "pytest-asyncio>=1",
+  "pytest-sugar>=1",
+  "pytest-xdist>=3",
+]
+lint = [
+  "deptry>=0.23",
+  "ruff>=0.12",
+  "pyrefly>=0.31",
+  "ty>=0.0.1a19",
+]
+
+[tool.uv.sources]
+example-package = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "example-package",
+]
+
+[tool.uv]
+default-groups = [ "dev", "lint" ]
+
+[tool.hatch.build.targets.wheel]
+include = [ "example_package", "README.md" ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+xfail_strict = true
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+[tool.pyrefly]
+project-includes = ["example_package", "tests"]
+project-excludes = [".venv"]
+
+[tool.pyrefly.errors]
+implicitly-defined-attribute = true
