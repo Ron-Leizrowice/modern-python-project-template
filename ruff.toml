@@ -52,18 +52,23 @@ lint.select = [
   # "PD",     # [Pandas specific linting rules](https://docs.astral.sh/ruff/rules/#flake8-pandas-pd) - Uncomment if using Pandas
 ]
 lint.ignore = [
-  "COM812", # Disabled for compatibility with ruff formatter
-  "D100",   # Allow missing docstrings in module
-  "D102",   # Allow missing docstrings in public methods
-  "D104",   # Allow missing docstrings in public packages
-  "D105",   # Allow missing docstrings in magic methods
-  "D107",   # Allow missing docstrings in __init__ methods
-  "D202",           # Allow blank lines after function docstrings
-  "D203",           # Allow blank lines before class docstrings
-  "D213",           # Allow multi-line docstring summary to start at the second line
-  "D202",   # Allow blank line after docstring
+  "COM812",  # Disabled for compatibility with ruff formatter
+  "D100",    # Allow missing docstrings in module
+  "D102",    # Allow missing docstrings in public methods
+  "D104",    # Allow missing docstrings in public packages
+  "D105",    # Allow missing docstrings in magic methods
+  "D107",    # Allow missing docstrings in __init__ methods
+  "D202",    # Allow blank lines after function docstrings
+  "D203",    # Allow blank lines before class docstrings
+  "D213",    # Allow multi-line docstring summary to start at the second line
+  "D202",    # Allow blank line after docstring
+  "PLR0913", # Allow too many arguments
+  "N812",    # Allow mixed-case variable names
+  "S101",    # Allow use of assert statements
+  "SIM108",  
+  "TC002", "TC003",   # Allow type-checking imports
 ]
 lint.pydocstyle.convention = "google"
 
 [lint.per-file-ignores]
-"tests/*" = [ "S101", "PLC0415", "D103" ]  # Allow assert statements in tests
+"tests/*" = [ "PLC0415", "D103" ]

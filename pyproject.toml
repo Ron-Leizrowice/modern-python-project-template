@@ -19,8 +19,16 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [ ]
+requires-python = ">=3.10"
+dependencies = [
+ "click>=8",
+ "datasets>=4",
+ "torch>=2",
+ "pydantic<2.12",
+ "wandb>=0.22",
+ "mlx>=0.29",
+ "transformers>=4",
+]
 
 [dependency-groups]
 dev = [
@@ -32,9 +40,9 @@ dev = [
 ]
 lint = [
   "deptry>=0.23",
-  "ruff>=0.12",
-  "pyrefly>=0.31",
-  "ty>=0.0.1a19",
+  "ruff>=0.14",
+  "pyrefly>=0.37",
+  "ty>=0",
 ]
 
 [tool.uv.sources]
