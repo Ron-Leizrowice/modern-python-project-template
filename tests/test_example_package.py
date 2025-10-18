@@ -1,3 +1,5 @@
+"""Test the example_package module."""
+
 import importlib.util
 
 import pytest

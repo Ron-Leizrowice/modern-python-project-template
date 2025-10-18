@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 .uv_cache/
 *.egg-info/
+.cache
+.wandb

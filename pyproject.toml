@@ -1,40 +1,44 @@
-[build-system]
-requires = [ "hatchling", "uv-dynamic-versioning>=0.7.0" ]
-build-backend = "hatchling.build"
-
-[tool.hatch.version]
-source = "uv-dynamic-versioning"
-
-[tool.uv-dynamic-versioning]
-vcs = "git"
-style = "pep440"
-bump = true
-
 [project]
 name = "python-project-template"
-dynamic = [ "version" ]
+version = "0.1.0"
 description = "A template for Python projects using modern tooling and best practices."
 authors = [
     { name = "Ron Leizrowice", email = "ron.leizrowice@protonmail.com" },
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [ ]
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "aiofiles>=25",
+    "httpx>=0.28",
+    "logfire>=4",
+    "msgspec>=0.19",
+    "numba>=0.62",
+    "numpy>=2",
+    "orjson>=3",
+    "pydantic>=2",
+    "rich>=14",
+]
+
+[project.scripts]
+hello-world = "example_package.main:hello_world"
+mandelbrot-demo = "example_package.main:mandelbrot_performance_demo"
+json-loading-demo = "example_package.main:json_loading_performance_demo"
+typed-decoding-demo = "example_package.main:typed_decoding_demo"
 
 [dependency-groups]
 dev = [
+  "deptry>=0.23",
+  "ipykernel>=7",
+  "jupyter>=1",
   "pip>=25",
+  "pyrefly>=0.37",
   "pytest>=8",
   "pytest-asyncio>=1",
   "pytest-sugar>=1",
   "pytest-xdist>=3",
-]
-lint = [
-  "deptry>=0.23",
-  "ruff>=0.12",
-  "pyrefly>=0.31",
-  "ty>=0.0.1a19",
+  "ruff>=0.14",
+  "ty>=0",
 ]
 
 [tool.uv.sources]
@@ -45,12 +49,6 @@ members = [
     "example-package",
 ]
 
-[tool.uv]
-default-groups = [ "dev", "lint" ]
-
-[tool.hatch.build.targets.wheel]
-include = [ "example_package", "README.md" ]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 xfail_strict = true
@@ -58,9 +56,28 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
+[tool.basedpyright]
+include = ["example_package", "tests"]
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportUnnecessaryIsInstance = false
+reportUnnecessaryTypeIgnoreComment = true
+reportMissingModuleSource = false
+
+[tool.mypy]
+strict = true
+
 [tool.pyrefly]
 project-includes = ["example_package", "tests"]
 project-excludes = [".venv"]
 
 [tool.pyrefly.errors]
 implicitly-defined-attribute = true
+
+[build-system]
+requires = ["uv_build>=0.9"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "example_package"
+module-root = ""

@@ -33,20 +33,20 @@ jobs:
           enable-cache: true
 
       - name: Sync dependencies and check uv lockfile is up to date
-        run: uv sync --all-groups --all-extras --locked 
+        run: uv sync --dev --locked
 
       # --- Quality: lint, format, type-checking, unused deps ---
       - name: Ruff format
-        run: uv run ruff format --check --diff
+        run: uv run ruff format . --check --diff
 
       - name: Ruff check
-        run: uv run ruff check --diff
+        run: uv run ruff check . --diff
 
       - name: Type checking (Pyrefly)
-        run: uv run pyrefly check
+        run: uv run pyrefly check .
 
       - name: Type checking (Ty)
-        run: uv run ty check
+        run: uv run ty check .
         continue-on-error: true
 
       - name: Unused dependencies (Deptry)
