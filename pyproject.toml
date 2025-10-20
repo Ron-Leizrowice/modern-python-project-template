@@ -11,12 +11,14 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "aiofiles>=25",
     "httpx>=0.28",
-    "logfire>=4",
+    "logfire[httpx]>=4",
     "msgspec>=0.19",
     "numba>=0.62",
     "numpy>=2",
+    "ollama>=0.6",
     "orjson>=3",
     "pydantic>=2",
+    "pydantic-ai>=1",
     "rich>=14",
 ]
 
@@ -25,6 +27,7 @@ hello-world = "example_package.main:hello_world"
 mandelbrot-demo = "example_package.main:mandelbrot_performance_demo"
 json-loading-demo = "example_package.main:json_loading_performance_demo"
 typed-decoding-demo = "example_package.main:typed_decoding_demo"
+ai-agent-demo = "example_package.main:ai_agent_demo"
 
 [dependency-groups]
 dev = [

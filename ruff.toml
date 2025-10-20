@@ -58,6 +58,7 @@ lint.ignore = [
   "D213",     # Allow multi-line docstring summary to start at the second line
   "N806",     # Allow uppercased variable names
   "N812",     # Allow mixed-case variable names
+  "N815",     # Allow camelCase attributes
   "S101",     # Allow use of assert statements
   "SIM108",   # Allow if/else blocks (instead of requiring ternary operations)
 

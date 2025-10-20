@@ -7,14 +7,15 @@ from time import perf_counter
 
 from rich import print as pprint
 
-from example_package.json_loading_demo import (
+from example_package.ai_agent_demo import run_agent
+from example_package.json_loading_benchmark import (
     DATASET_CONFIGS,
     JsonLoader,
     TypedDecoder,
     benchmark_json_loading,
     benchmark_typed_decoding,
 )
-from example_package.mandelbrot import ExecutionMode, time_mandelbrot
+from example_package.mandelbrot_benchmark import ExecutionMode, time_mandelbrot
 
 
 def hello_world() -> None:
@@ -69,6 +70,13 @@ def mandelbrot_performance_demo() -> None:
         t0 = perf_counter()
         _ = time_mandelbrot(mode)
         pprint(f"Elapsed time ({mode.value}): {perf_counter() - t0:.3f} seconds")
+
+
+def ai_agent_demo() -> None:
+    """Demos a Pydantic AI agent workflow with some dummy tools."""
+    prompt = "Using your tools, analyze if cities with bad weather recently experienced worse stock market performance."
+    response = asyncio.run(run_agent(prompt))
+    print(response)
 
 
 if __name__ == "__main__":
