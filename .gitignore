@@ -7,5 +7,5 @@ __pycache__/
 *.egg-info/
 raw_text.md
 .cache
-wandb
+.wandb
 *.ckpt
