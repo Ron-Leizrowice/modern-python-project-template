@@ -1,33 +1,15 @@
 import math
-import os
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
+from typing import cast
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 from transformers import PreTrainedTokenizerFast
 
+from llm_training_example.constants import DEVICE
 from llm_training_example.tokenizer import get_tokenizer
-
-os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-
-
-class FloatPrecision(Enum):
-    """Precision types for model training."""
-
-    FP32 = "fp32"
-    BF16 = "bf16"
-    FP16 = "fp16"
-
-    def to_torch_dtype(self) -> torch.dtype:
-        if self is FloatPrecision.FP32:
-            return torch.float32
-        if self is FloatPrecision.BF16:
-            return torch.bfloat16
-        if self is FloatPrecision.FP16:
-            return torch.float16
-        raise ValueError(f"Unsupported FloatPrecision value: {self}.")
 
 
 class ActivationFunction(StrEnum):
@@ -55,7 +37,7 @@ MASK_RANK_BATCH = 3
 class MultiHeadSelfAttention(nn.Module):
     """Manual multi-head self-attention with additive masks."""
 
-    def __init__(self, *, dtype: torch.dtype, d_model: int, n_heads: int, use_bias: bool, dropout: float) -> None:
+    def __init__(self, *, d_model: int, n_heads: int, use_bias: bool, dropout: float) -> None:
         super().__init__()
         if d_model % n_heads != 0:
             raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads}).")
@@ -64,10 +46,10 @@ class MultiHeadSelfAttention(nn.Module):
         self.head_dim = d_model // n_heads
         self.scale = self.head_dim**-0.5
 
-        self.q_proj = nn.Linear(d_model, d_model, bias=use_bias, dtype=dtype)
-        self.k_proj = nn.Linear(d_model, d_model, bias=use_bias, dtype=dtype)
-        self.v_proj = nn.Linear(d_model, d_model, bias=use_bias, dtype=dtype)
-        self.out_proj = nn.Linear(d_model, d_model, bias=use_bias, dtype=dtype)
+        self.q_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.k_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.v_proj = nn.Linear(d_model, d_model, bias=use_bias)
+        self.out_proj = nn.Linear(d_model, d_model, bias=use_bias)
 
         self.attn_dropout = nn.Dropout(p=dropout)
 
@@ -115,6 +97,10 @@ def _relu_squared(x: torch.Tensor) -> torch.Tensor:
     return F.relu(x).square()
 
 
+def _relu(x: torch.Tensor) -> torch.Tensor:
+    return F.relu(x)
+
+
 class FeedForwardNetwork(nn.Module):
     """Position-wise feed-forward network."""
 
@@ -125,7 +111,7 @@ class FeedForwardNetwork(nn.Module):
         self.lin_in = nn.Linear(d_model, d_inner, bias=use_bias)
         match activation:
             case ActivationFunction.RELU:
-                self.activation = nn.ReLU()
+                self.activation = _relu
             case ActivationFunction.RELU2:
                 self.activation = _relu_squared
         self.lin_out = nn.Linear(d_inner, d_model, bias=use_bias)
@@ -148,7 +134,6 @@ class TransformerBlock(nn.Module):
     def __init__(
         self,
         *,
-        dtype: torch.dtype,
         d_model: int,
         n_heads: int,
         d_inner: int,
@@ -160,7 +145,6 @@ class TransformerBlock(nn.Module):
     ) -> None:
         super().__init__()
         self.self_attn = MultiHeadSelfAttention(
-            dtype=dtype,
             d_model=d_model,
             n_heads=n_heads,
             use_bias=use_attn_bias,
@@ -204,14 +188,15 @@ class PositionalEncoding(nn.Module):
     """
 
     pe: torch.Tensor  # (1, max_len, d)
+    dropout: nn.Dropout
 
-    def __init__(self, dtype: torch.dtype, d_model: int, dropout: float = 0.1, max_len: int = 4096) -> None:
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 4096) -> None:
         super().__init__()
         self.dropout: nn.Dropout = nn.Dropout(p=dropout)
 
-        pe = torch.zeros(max_len, d_model, dtype=dtype)
-        position = torch.arange(0, max_len, dtype=dtype).unsqueeze(1)  # (max_len, 1)
-        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=dtype) * (-math.log(10000.0) / d_model))  # (d/2,)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1)  # (max_len, 1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))  # (d/2,)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)  # (1, max_len, d)
@@ -229,14 +214,13 @@ class PositionalEncoding(nn.Module):
             Tensor with shape (B, T, d) after adding positions and dropout.
         """
         seq_len = x.size(1)
-        return self.dropout(x + self.pe[:, :seq_len, :])  # ensure pe built in model dtype
+        return self.dropout(x + self.pe[:, :seq_len, :])
 
 
 class TransformerModel(nn.Module):
     """Causal Transformer encoder + LM head.
 
     Dimensions:
-        dtype: Floating point precision type to use.
         vocab_size: Vocabulary size V.
         d_model: Embedding/hidden size d.
         n_heads: Number of attention heads.
@@ -258,8 +242,6 @@ class TransformerModel(nn.Module):
     def __init__(
         self,
         *,
-        device: torch.device,
-        dtype: torch.dtype,
         seq_len: int,
         dimensions: LlmDimensions,
         activation_function: ActivationFunction,
@@ -277,16 +259,13 @@ class TransformerModel(nn.Module):
         self.sqrt_d = math.sqrt(dimensions.d_model)
 
         # Token embedding table: maps token ids -> d-dimensional vectors.
-        self.embeddings = nn.Embedding(
-            num_embeddings=dimensions.vocab_size, embedding_dim=dimensions.d_model, dtype=dtype
-        )
+        self.embeddings = nn.Embedding(num_embeddings=dimensions.vocab_size, embedding_dim=dimensions.d_model)
 
         # Positional encoding adds deterministic position information to embeddings.
-        self.positional_encoder = PositionalEncoding(dtype=dtype, d_model=dimensions.d_model, dropout=dropout)
+        self.positional_encoder = PositionalEncoding(d_model=dimensions.d_model, dropout=dropout)
 
         self.layers = nn.ModuleList(
             TransformerBlock(
-                dtype=dtype,
                 d_model=dimensions.d_model,
                 n_heads=dimensions.n_heads,
                 d_inner=dimensions.d_inner,
@@ -306,7 +285,7 @@ class TransformerModel(nn.Module):
 
         self.init_weights(init_range=weight_init_range)
 
-        base_mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool, device=device))
+        base_mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool))
         self.register_buffer("causal_mask", base_mask, persistent=False)
 
     @torch.no_grad()
@@ -339,8 +318,6 @@ class TransformerModel(nn.Module):
 
 def setup_llm(
     *,
-    dtype: torch.dtype,
-    device: torch.device,
     dimensions: LlmDimensions,
     activation_function: ActivationFunction,
     tie_encoder_decoder_weights: bool,
@@ -348,14 +325,11 @@ def setup_llm(
     use_attn_bias: bool,
     rms_norm: bool,
     weight_init_range: float,
-    compile_model: bool,
     seq_len: int,
     dropout: float,
 ) -> TransformerModel:
     """Instantiate and prepare the Transformer model for training."""
     model = TransformerModel(
-        dtype=dtype,
-        device=device,
         seq_len=seq_len,
         dimensions=dimensions,
         activation_function=activation_function,
@@ -367,9 +341,6 @@ def setup_llm(
         weight_init_range=weight_init_range,
     )
 
-    model = model.to(device=device, dtype=dtype)
-    if compile_model:
-        model = torch.compile(model)
-    assert isinstance(model, TransformerModel)
-
-    return model
+    model = model.to(device=DEVICE)
+    model = torch.compile(model, fullgraph=True, dynamic=False)
+    return cast("TransformerModel", model)

@@ -90,7 +90,7 @@ def _load_data(
     *,
     tokenizer: PreTrainedTokenizerFast,
     split_name: str,
-    batch_size: int = 64,
+    batch_size: int,
 ) -> TensorDataset:
     data_split = get_data()[split]
     fingerprint = getattr(data_split, "_fingerprint", split_name)
@@ -122,21 +122,29 @@ def prepare_data(
     tokenizer: PreTrainedTokenizerFast,
     *,
     batch_size: int,
+    grad_accum_steps: int,
 ) -> DataLoader:
     """Prepare the training data loader."""
-    train_dataset = _load_data(
-        split="train",
-        tokenizer=tokenizer,
-        split_name="train",
+    train_dataset: TensorDataset = _load_data(
+        split="train", tokenizer=tokenizer, split_name="train", batch_size=batch_size
     )
+    # Ensure dataset length is an exact multiple of effective batch (for clean grad accumulation)
+    effective_batch = batch_size * grad_accum_steps
+    total_examples = len(train_dataset)
+    trimmed_examples = (total_examples // effective_batch) * effective_batch
+    assert trimmed_examples > 0
+    if trimmed_examples != total_examples:
+        train_dataset = TensorDataset(*(t[:trimmed_examples] for t in train_dataset.tensors))
+
     g = torch.Generator()
     g.manual_seed(SEED)
     return DataLoader(
         train_dataset,
         batch_size=batch_size,
         drop_last=True,
-        num_workers=2,
+        num_workers=4,
         persistent_workers=True,
         shuffle=True,
         generator=g,
+        pin_memory=True,
     )
