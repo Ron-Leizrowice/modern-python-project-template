@@ -1,6 +1,4 @@
 import functools
-import hashlib
-import json
 import math
 import os
 from collections.abc import Generator
@@ -14,9 +12,12 @@ from tqdm import tqdm
 from transformers import BatchEncoding, PreTrainedTokenizerFast
 from transformers.tokenization_utils_base import TextInput
 
-from llm_training_example.constants import CACHE_DIR, SEED
+from llm_training.constants import CACHE_DIR, SEED
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
+
+DATASET = "open-phi/textbooks"
+
 
 _TOKENIZED_CACHE_DIR = CACHE_DIR / "tokenized_datasets"
 _TOKENIZED_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -25,18 +26,11 @@ _TOKENIZED_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 @functools.lru_cache(maxsize=1)
 def get_data() -> DatasetDict:
     """Load and cache the textbooks dataset."""
-    return cast("DatasetDict", load_dataset("open-phi/textbooks"))
+    return cast("DatasetDict", load_dataset(DATASET))
 
 
-def _cache_path(*, split_name: str, tokenizer: PreTrainedTokenizerFast, fingerprint: str) -> Path:
-    cache_key = {
-        "split": split_name,
-        "seq_len": tokenizer.model_max_length,
-        "fingerprint": fingerprint,
-        "tokenizer": tokenizer.vocab_size,
-    }
-    digest = hashlib.sha256(json.dumps(cache_key, sort_keys=True).encode()).hexdigest()
-    return _TOKENIZED_CACHE_DIR / f"{split_name}_{tokenizer.model_max_length}_{digest}.pt"
+def _cache_path(*, tokenizer: PreTrainedTokenizerFast) -> Path:
+    return _TOKENIZED_CACHE_DIR / f"{tokenizer.vocab_size}_{tokenizer.model_max_length}_{DATASET.replace('/', '-')}.pt"
 
 
 def _batched(seq: list[TextInput], size: int) -> Generator[list[TextInput]]:
@@ -49,12 +43,12 @@ def _tokenize_and_chunk_texts(
     *,
     tokenizer: PreTrainedTokenizerFast,
     split_name: str,
-    batch_size: int,
+    batch_size: int = 64,
 ) -> TensorDataset:
     seq_len = tokenizer.model_max_length
 
     encoded_data: list[torch.Tensor] = []
-    total_batches = math.ceil(len(texts) / batch_size) if texts else 0
+    total_batches = math.ceil(len(texts) / batch_size)
 
     for batch in tqdm(  # type: ignore[not-iterable]
         _batched(texts, batch_size),
@@ -90,16 +84,10 @@ def _load_data(
     *,
     tokenizer: PreTrainedTokenizerFast,
     split_name: str,
-    batch_size: int,
 ) -> TensorDataset:
     data_split = get_data()[split]
-    fingerprint = getattr(data_split, "_fingerprint", split_name)
 
-    cache_path = _cache_path(
-        split_name=split_name,
-        tokenizer=tokenizer,
-        fingerprint=fingerprint,
-    )
+    cache_path = _cache_path(tokenizer=tokenizer)
 
     if cache_path.exists():
         data = torch.load(cache_path, map_location="cpu", weights_only=False)
@@ -111,7 +99,6 @@ def _load_data(
         texts,
         tokenizer=tokenizer,
         split_name=split_name,
-        batch_size=batch_size,
     )
 
     torch.save(data, cache_path)
@@ -119,22 +106,21 @@ def _load_data(
 
 
 def prepare_data(
-    tokenizer: PreTrainedTokenizerFast,
-    *,
-    batch_size: int,
-    grad_accum_steps: int,
+    tokenizer: PreTrainedTokenizerFast, *, batch_size: int, grad_accum_steps: int, load_single_batch: bool = False
 ) -> DataLoader:
     """Prepare the training data loader."""
-    train_dataset: TensorDataset = _load_data(
-        split="train", tokenizer=tokenizer, split_name="train", batch_size=batch_size
-    )
+    train_dataset: TensorDataset = _load_data(split="train", tokenizer=tokenizer, split_name="train")
     # Ensure dataset length is an exact multiple of effective batch (for clean grad accumulation)
     effective_batch = batch_size * grad_accum_steps
     total_examples = len(train_dataset)
     trimmed_examples = (total_examples // effective_batch) * effective_batch
+
     assert trimmed_examples > 0
     if trimmed_examples != total_examples:
         train_dataset = TensorDataset(*(t[:trimmed_examples] for t in train_dataset.tensors))
+
+    if load_single_batch:
+        train_dataset = TensorDataset(*(t[: batch_size * grad_accum_steps] for t in train_dataset.tensors))
 
     g = torch.Generator()
     g.manual_seed(SEED)
@@ -143,6 +129,7 @@ def prepare_data(
         batch_size=batch_size,
         drop_last=True,
         num_workers=4,
+        prefetch_factor=4,
         persistent_workers=True,
         shuffle=True,
         generator=g,

@@ -12,28 +12,28 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
       "source.organizeImports": "never",
-      "source.fixAll": "always"
+      "source.fixAll": "explicit"
     }
   },
   "python.analysis.packageIndexDepths": [
     {
       "name": "",
-      "depth": 3,
+      "depth": 1,
       "includeAllSymbols": true
     }
   ],
   "python.languageServer": "Pylance",
 
   "vsintellicode.python.completionsEnabled": true,
-  "python.analysis.inlayHints.callArgumentNames": "partial",
-  "python.analysis.inlayHints.functionReturnTypes": true,
-  "python.analysis.inlayHints.variableTypes": true,
+  "python.analysis.inlayHints.callArgumentNames": "off",
+  "python.analysis.inlayHints.functionReturnTypes": false,
+  "python.analysis.inlayHints.variableTypes": false,
   "python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
 
   // Python Analysis
-  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.typeCheckingMode": "standard",
   "python.analysis.autoSearchPaths": true,
-  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoImportCompletions": false,
   "python.analysis.completeFunctionParens": true,
   "python.analysis.inlayHints.pytestParameters": true,
   "python.analysis.autoFormatStrings": true,

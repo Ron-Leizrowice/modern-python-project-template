@@ -1,5 +1,5 @@
 [project]
-name = "llm-training-example"
+name = "llm-training"
 version = "0.1.0"
 description = "A template for Python projects using modern tooling and best practices."
 authors = [
@@ -14,18 +14,17 @@ dependencies = [
  "wandb>=0.22",
  "transformers>=4",
  "torch>=2",
-  'triton-windows>=3.5; platform_system == "Windows"',
-  'triton>=3.5; platform_system == "Linux"',
+ 'triton-windows>=3.5; platform_system == "Windows"',
+ 'triton>=3.5; platform_system == "Linux"',
+ "click>=8.3.0",
 ]
 
 [project.scripts]
-train = "llm_training_example.train:main"
+train = "llm_training.train:main"
 
 [dependency-groups]
 dev = [
   "deptry>=0.23",
-  "ipykernel>=7",
-  "jupyter>=1",
   "pip>=25",
   "pyrefly>=0.37",
   "pytest>=8",
@@ -44,24 +43,12 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 xfail_strict = true
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
-
-[tool.basedpyright]
-include = ["example_package", "tests"]
-typeCheckingMode = "strict"
-reportMissingTypeStubs = false
-reportUnnecessaryIsInstance = false
-reportUnnecessaryTypeIgnoreComment = true
-reportMissingModuleSource = false
-
-[tool.mypy]
-strict = true
 
 [tool.pyrefly]
 project-includes = ["example_package", "tests"]

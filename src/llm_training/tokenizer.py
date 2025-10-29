@@ -3,8 +3,8 @@ from pathlib import Path
 
 from transformers import AutoTokenizer, PreTrainedTokenizerFast
 
-from llm_training_example.constants import BASE_TOKENIZER_PATH, CACHE_DIR
-from llm_training_example.data import get_data
+from llm_training.constants import BASE_TOKENIZER_PATH, CACHE_DIR
+from llm_training.data import get_data
 
 os.environ["TOKENIZERS_PARALLELISM"] = "1"
 
@@ -37,5 +37,7 @@ def get_tokenizer(seq_len: int, vocab_size: int) -> PreTrainedTokenizerFast:
     tokenizer_path = CACHE_DIR / f"tokenizer_{vocab_size}"
 
     if tokenizer_path.exists():
-        return AutoTokenizer.from_pretrained(tokenizer_path, use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, use_fast=True)
+        tokenizer.model_max_length = seq_len
+        return tokenizer
     return _train_tokenizer(vocab_size=vocab_size, seq_len=seq_len, path=tokenizer_path)

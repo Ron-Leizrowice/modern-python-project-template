@@ -41,6 +41,8 @@ class OptimizerConfig:
     lr: float  # Base learning rate for the optimizer
     weight_decay: float  # Weight decay strength applied by the optimizer
     eps: float  # Numerical stability term added to the denominator
+    beta1: float
+    beta2: float
 
 
 @dataclass
@@ -95,13 +97,14 @@ def _create_optimizer(model: nn.Module, config: OptimizerConfig) -> Optimizer:
                 params=groups,
                 lr=config.lr,
                 eps=config.eps,
+                betas=(config.beta1, config.beta2),
+                fused=True,
             )
         case OptimizerType.SGD:
             return torch.optim.SGD(
                 params=groups,
                 lr=config.lr,
             )
-    raise ValueError(f"Unsupported optimizer algorithm: {config.algorithm}.")
 
 
 def _create_scheduler(
