@@ -105,8 +105,8 @@ def _load_data(
     return data
 
 
-def prepare_data(
-    tokenizer: PreTrainedTokenizerFast, *, batch_size: int, grad_accum_steps: int, load_single_batch: bool = False
+def create_dataloader(
+    *, tokenizer: PreTrainedTokenizerFast, batch_size: int, grad_accum_steps: int, overfit_single_batch: bool = False
 ) -> DataLoader:
     """Prepare the training data loader."""
     train_dataset: TensorDataset = _load_data(split="train", tokenizer=tokenizer, split_name="train")
@@ -119,7 +119,7 @@ def prepare_data(
     if trimmed_examples != total_examples:
         train_dataset = TensorDataset(*(t[:trimmed_examples] for t in train_dataset.tensors))
 
-    if load_single_batch:
+    if overfit_single_batch:
         train_dataset = TensorDataset(*(t[: batch_size * grad_accum_steps] for t in train_dataset.tensors))
 
     g = torch.Generator()

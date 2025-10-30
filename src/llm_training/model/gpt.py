@@ -1,33 +1,59 @@
-import math
+"""Tensor dimension notation.
+
+- B: batch size
+- T: sequence length
+- V: vocabulary size
+- C: model width (d_model)
+- I: feed-forward hidden width (d_inner)
+- H: attention heads
+"""
+
 from dataclasses import dataclass
 
 import torch
 from torch import nn
-from transformers import PreTrainedTokenizerFast
+from torch.utils.checkpoint import checkpoint
 
-from llm_training.constants import DEVICE
-from llm_training.model.activations import ActivationFunction
-from llm_training.model.blocks import TransformerBlock
-from llm_training.model.norm import _rms_norm
-from llm_training.model.pe import LearnedPositionalEncoding, PositionalEncoding, PositionalEncodingType
+from llm_training.model.norm import FunctionalRmsNorm, NormFunction
+from llm_training.model.pe import (
+    LearnedPositionalEncoding,
+    PositionalEncoder,
+    PositionalEncoding,
+    SinusoidalPositionalEncoding,
+)
+from llm_training.model.transformer_blocks import ActivationFunction, TransformerBlock
 from llm_training.model.weight_init import (
     ModelWeightInit,
     init_embedding,
     init_positional_encoding,
     init_transformer_block,
 )
-from llm_training.tokenizer import get_tokenizer
 
 
 @dataclass
 class LlmDimensions:
     """Configuration parameters for the Transformer model."""
 
+    seq_len: int  # Maximum input sequence length
     vocab_size: int  # Tokenizer vocabulary size
     d_model: int  # Transformer hidden dimension
+    d_inner: int  # Feed-forward network hidden size
     n_heads: int  # Number of attention heads
     n_layers: int  # Number of Transformer layers
-    d_inner: int  # Feed-forward network hidden size
+
+
+@dataclass
+class LlmArchitecture:
+    """Configuration for Transformer model architecture."""
+
+    activation_function: ActivationFunction
+    norm: NormFunction
+    positional_encoder: PositionalEncoder
+    use_ff_bias: bool
+    use_attn_bias: bool
+    dimensions: LlmDimensions
+    weight_init: ModelWeightInit
+    use_gradient_checkpointing: bool
 
 
 class TransformerModel(nn.Module):
@@ -41,70 +67,59 @@ class TransformerModel(nn.Module):
         n_layers: Number of stacked encoder layers.
     """
 
-    tokenizer: PreTrainedTokenizerFast
-    causal_mask: torch.Tensor
-
     embeddings: nn.Embedding
-    positional_encoder: nn.Module
+    embedding_norm: nn.Module
+    positional_encoder: PositionalEncoding
     blocks: nn.ModuleList
+    output_norm: nn.Module
     lm_head: nn.Linear
 
-    def __init__(
-        self,
-        *,
-        seq_len: int,
-        dimensions: LlmDimensions,
-        activation_function: ActivationFunction,
-        use_ffn_bias: bool,
-        use_attn_bias: bool,
-        tie_encoder_decoder_weights: bool,
-        rms_norm: bool,
-        positional_encoding_type: PositionalEncodingType,
-        weight_init: ModelWeightInit,
-    ) -> None:
+    def __init__(self, config: LlmArchitecture) -> None:
         super().__init__()
 
-        self.tokenizer = get_tokenizer(seq_len=seq_len, vocab_size=dimensions.vocab_size)
+        dimensions = config.dimensions
 
-        # Token embedding table: maps token ids -> d-dimensional vectors.
+        # Token embedding table: maps token ids -> (C)
         self.embeddings = nn.Embedding(num_embeddings=dimensions.vocab_size, embedding_dim=dimensions.d_model)
 
-        # Positional encoding adds deterministic position information to embeddings.
-        if positional_encoding_type is PositionalEncodingType.LEARNED:
-            self.positional_encoder: nn.Module = LearnedPositionalEncoding(
-                max_len=seq_len,
-                d_model=dimensions.d_model,
-            )
-        else:
-            self.positional_encoder = PositionalEncoding(d_model=dimensions.d_model, max_len=seq_len)
+        # Positional encoder returns tensor shaped (B, T, C)
+        match config.positional_encoder:
+            case PositionalEncoder.SINUSOIDAL:
+                self.positional_encoder = SinusoidalPositionalEncoding(
+                    d_model=dimensions.d_model, max_len=dimensions.seq_len
+                )
+            case PositionalEncoder.LEARNED:
+                self.positional_encoder = LearnedPositionalEncoding(
+                    max_len=dimensions.seq_len,
+                    d_model=dimensions.d_model,
+                )
 
         self.blocks = nn.ModuleList(
             TransformerBlock(
                 d_model=dimensions.d_model,
                 n_heads=dimensions.n_heads,
                 d_inner=dimensions.d_inner,
-                activation=activation_function,
-                use_ffn_bias=use_ffn_bias,
-                use_attn_bias=use_attn_bias,
-                rms_norm=rms_norm,
+                activation=config.activation_function,
+                use_ffn_bias=config.use_ff_bias,
+                use_attn_bias=config.use_attn_bias,
+                norm=config.norm,
             )
             for _ in range(dimensions.n_layers)
         )
+        self.use_gradient_checkpointing = config.use_gradient_checkpointing
 
-        # Final linear head projects hidden states to vocabulary logits (no bias required)
+        # Final linear head projects (B, T, C) -> (B, T, V)
         self.lm_head = nn.Linear(in_features=dimensions.d_model, out_features=dimensions.vocab_size, bias=False)
-        if tie_encoder_decoder_weights:
-            self.lm_head.weight = self.embeddings.weight
 
-        if rms_norm:
-            self.final_norm = _rms_norm
-        else:
-            self.final_norm = nn.LayerNorm(dimensions.d_model)
+        match config.norm:
+            case NormFunction.FunctionalRmsNorm:
+                self.embedding_norm = FunctionalRmsNorm(dimensions.d_model)
+                self.output_norm = FunctionalRmsNorm(dimensions.d_model)
+            case NormFunction.LayerNorm:
+                self.embedding_norm = nn.LayerNorm(dimensions.d_model)
+                self.output_norm = nn.LayerNorm(dimensions.d_model)
 
-        self.init_weights(config=weight_init)
-
-        causal_mask = torch.ones(seq_len, seq_len, dtype=torch.bool).triu(1)
-        self.register_buffer("causal_mask", causal_mask, persistent=False)
+        self.init_weights(config=config.weight_init)
 
     @torch.no_grad()
     def init_weights(self, config: ModelWeightInit) -> None:
@@ -118,6 +133,8 @@ class TransformerModel(nn.Module):
         # Init the Embeddings + LM-head
         init_embedding(self.embeddings, config=config.embedding)
         init_embedding(self.lm_head, config=config.embedding)
+        if config.tie_encoder_decoder_weights:
+            self.lm_head.weight = self.embeddings.weight
 
         # If the positional encodings are learnable, init them
         init_positional_encoding(self.positional_encoder, config=config.pe)
@@ -127,51 +144,36 @@ class TransformerModel(nn.Module):
 
     def forward(self, src: torch.Tensor) -> torch.Tensor:
         """Apply embedding, positions, Transformer stack, and LM head."""
-        x = self._embed_with_positions(src)
-        hidden_states = self._run_transformer_blocks(x.to(self.ff_dtype))
-        hidden_states = self.final_norm(hidden_states)
-        return self.lm_head(hidden_states.to(self.embeddings_dtype))
+        wte = self._embed_with_positions(src)
+        h = self._run_transformer_blocks(wte)
+        logits = self._generate_logits(h)
+        return logits
 
     def _embed_with_positions(self, src: torch.Tensor) -> torch.Tensor:
-        x: torch.Tensor = self.embeddings(src)
-        return self.positional_encoder(x.to(self.pe_dtype))
+        # Generate embeddings from token indices -> (B, T, C)
+        wte = self.embeddings(src)
+        # Normalize token level embeddings -> (B, T, C)
+        wte = self.embedding_norm(wte)
+        # Cast to positional-encoder dtype
+        wte = wte.to(self.pe_dtype)
+        # Apply positional embeddings -> (B, T, C)
+        return self.positional_encoder(wte)
 
     def _run_transformer_blocks(self, h: torch.Tensor) -> torch.Tensor:
-        seq_len = h.size(1)
-        causal_mask = self.causal_mask[:seq_len, :seq_len].unsqueeze(0).unsqueeze(1)  # (1,1,T,T)
+        # Cast to transformer block dtype
+        h = h.to(self.ff_dtype)
+        # Pass through each transformer layer; optionally checkpoint to trade compute for memory
         for layer in self.blocks:
-            h = layer(h, causal_mask)
+            if self.use_gradient_checkpointing and self.training:
+                h = checkpoint(layer, h, use_reentrant=False)  # type: ignore
+            else:
+                h = layer(h)  # (B, T, C)
         return h
 
-
-def setup_llm(
-    *,
-    dimensions: LlmDimensions,
-    activation_function: ActivationFunction,
-    tie_encoder_decoder_weights: bool,
-    use_ffn_bias: bool,
-    use_attn_bias: bool,
-    rms_norm: bool,
-    seq_len: int,
-    positional_encoding_type: PositionalEncodingType,
-    weight_init: ModelWeightInit,
-) -> TransformerModel:
-    """Instantiate and prepare the Transformer model for training."""
-    model = TransformerModel(
-        seq_len=seq_len,
-        dimensions=dimensions,
-        activation_function=activation_function,
-        use_ffn_bias=use_ffn_bias,
-        use_attn_bias=use_attn_bias,
-        tie_encoder_decoder_weights=tie_encoder_decoder_weights,
-        rms_norm=rms_norm,
-        positional_encoding_type=positional_encoding_type,
-        weight_init=weight_init,
-    )
-
-    model = model.to(device=DEVICE)
-    model.compile(
-        fullgraph=True,
-        dynamic=False,
-    )
-    return model
+    def _generate_logits(self, h: torch.Tensor) -> torch.Tensor:
+        # Cast to lm-head dtype
+        h = h.to(self.embeddings_dtype)
+        # Apply output norm -> (B, T, C)
+        h = self.output_norm(h)
+        # Project hidden state to obtain logits -> (B, T, V)
+        return self.lm_head(h)

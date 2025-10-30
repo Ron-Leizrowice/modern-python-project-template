@@ -67,6 +67,8 @@ lint.ignore = [
   "S101",    # Allow use of assert statements
   "SIM108",  
   "TC002", "TC003",   # Allow type-checking imports
+  "RET504",  # Allow assignment before return (improves readability)
+  "N806",    # Allow upper case vars (convention in ML code)
 ]
 lint.pydocstyle.convention = "google"
 

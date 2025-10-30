@@ -4,10 +4,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
+PWD = Path.cwd()
 LIB_DIR = Path(__file__).parent
 
-CACHE_DIR = LIB_DIR / ".cache"
-WANDB_LOGGING_DIR = LIB_DIR / ".wandb"
+CACHE_DIR = PWD / ".cache"
+WANDB_LOGGING_DIR = PWD / ".wandb"
 
 CACHE_DIR.mkdir(exist_ok=True)
 WANDB_LOGGING_DIR.mkdir(exist_ok=True)

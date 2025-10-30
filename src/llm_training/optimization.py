@@ -7,6 +7,8 @@ from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
+WEIGHT_DECAY_EXCLUSIONS = ["embeddings", "position", "bias", "norm", "lm_head"]
+
 
 class OptimizerType(StrEnum):
     """Supported optimizer implementations."""
@@ -61,40 +63,36 @@ class SchedulerConfig:
 def _wd_groups(
     model: nn.Module,
     *,
-    wd: float,
-    no_decay_names: tuple[str, ...] = (
-        "bias",
-        "LayerNorm.weight",
-        "layer_norm.weight",
-        "norm.weight",
-        "BatchNorm.weight",
-    ),
-    exclude_dim_lt_2: bool = True,
+    weight_decay: float,
+    min_dim_for_decay: int = 2,
 ) -> list[dict]:
     decay, no_decay = [], []
     for n, p in model.named_parameters():
         if not p.requires_grad:
             continue
-        by_name = any(n.endswith(s) for s in no_decay_names)
-        by_dim = exclude_dim_lt_2 and (p.ndim < 2)
-        (no_decay if (by_name or by_dim) else decay).append(p)
+        by_name = any(s in n for s in WEIGHT_DECAY_EXCLUSIONS)
+        by_dim = p.ndim < min_dim_for_decay
+        if by_name or by_dim:
+            no_decay.append(p)
+        else:
+            decay.append(p)
+
     assert decay, "no parameters left to decay"
     return [
-        {"params": decay, "weight_decay": wd},
+        {"params": decay, "weight_decay": weight_decay},
         {"params": no_decay, "weight_decay": 0.0},
     ]
 
 
-def _create_optimizer(model: nn.Module, config: OptimizerConfig) -> Optimizer:
-    if config.weight_decay == 0.0:
-        groups = (p for p in model.parameters() if p.requires_grad)
-    else:
-        groups = _wd_groups(model, wd=config.weight_decay)
+def create_optimizer(model: nn.Module, config: OptimizerConfig) -> Optimizer:
+    """Construct an optimizer over model parameters with optional weight decay groups."""
+
+    trainable_params = _wd_groups(model, weight_decay=config.weight_decay)
 
     match config.algorithm:
         case OptimizerType.ADAMW:
             return torch.optim.AdamW(
-                params=groups,
+                params=trainable_params,
                 lr=config.lr,
                 eps=config.eps,
                 betas=(config.beta1, config.beta2),
@@ -102,17 +100,20 @@ def _create_optimizer(model: nn.Module, config: OptimizerConfig) -> Optimizer:
             )
         case OptimizerType.SGD:
             return torch.optim.SGD(
-                params=groups,
+                params=trainable_params,
                 lr=config.lr,
             )
+        case _:
+            raise ValueError(f"Unsupported optimizer type: {config.algorithm}")
 
 
-def _create_scheduler(
+def create_scheduler(
     optimizer: Optimizer,
     *,
     config: SchedulerConfig,
     total_steps: int,
 ) -> LRScheduler:
+    """Create a learning rate scheduler with warmup and decay phases."""
     warmup_steps = 0
     if config.warmup_type is not WarmupType.NONE:
         warmup_steps = max(1, int(total_steps * config.warmup_ratio))
@@ -149,18 +150,9 @@ def _create_scheduler(
                 raise ValueError(f"Unsupported decay schedule: {config.decay}.")
         return config.min_lr_ratio + (1.0 - config.min_lr_ratio) * base_multiplier
 
-    def lr_lambda(current_step: int) -> float:
+    def _lr_lambda(current_step: int) -> float:
         warmup = _warmup_factor(current_step)
         decay = _decay_factor(current_step)
         return warmup * decay
 
-    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
-
-
-def setup_optimizer_and_scheduler(
-    model: nn.Module, optimizer_config: OptimizerConfig, scheduler_config: SchedulerConfig, total_steps: int
-) -> tuple[Optimizer, LRScheduler]:
-    """Setup the training optimizer and learning-rate scheduler."""
-    optimizer = _create_optimizer(model, optimizer_config)
-    scheduler = _create_scheduler(optimizer, config=scheduler_config, total_steps=total_steps)
-    return optimizer, scheduler
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=_lr_lambda)

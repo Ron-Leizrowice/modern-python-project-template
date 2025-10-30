@@ -16,11 +16,13 @@ dependencies = [
  "torch>=2",
  'triton-windows>=3.5; platform_system == "Windows"',
  'triton>=3.5; platform_system == "Linux"',
- "click>=8.3.0",
+ "types-tqdm>=4",
+ "click>=8",
 ]
 
 [project.scripts]
-train = "llm_training.train:main"
+train = "llm_training.cli:train"
+overfit = "llm_training.cli:overfit"
 
 [dependency-groups]
 dev = [
@@ -51,7 +53,7 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
 [tool.pyrefly]
-project-includes = ["example_package", "tests"]
+project-includes = ["src", "tests"]
 project-excludes = [".venv"]
 
 [tool.pyrefly.errors]

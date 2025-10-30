@@ -1,3 +1,11 @@
+"""Tensor dimension notation.
+
+- B: batch size
+- T: sequence length
+- C: embedding width (d_model)
+- L: maximum cached sequence length
+"""
+
 import math
 from enum import StrEnum
 
@@ -5,14 +13,15 @@ import torch
 from torch import nn
 
 
-class PositionalEncodingType(StrEnum):
+class PositionalEncoder(StrEnum):
     """Supported positional encoding strategies."""
 
     SINUSOIDAL = "sinusoidal"
     LEARNED = "learned"
+    ROTARY = "rotary"
 
 
-class PositionalEncoding(nn.Module):
+class SinusoidalPositionalEncoding(nn.Module):
     """Sinusoidal positional encoding for batch-first inputs.
 
     Expects ``x`` shaped (B, T, d). Maintains a buffer ``pe`` with shape
@@ -57,6 +66,9 @@ class LearnedPositionalEncoding(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         seq_len = x.size(1)
-        positions = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0)
-        pos_embed = self.position_embeddings(positions)
-        return x + pos_embed
+        positions = torch.arange(seq_len, device=x.device, dtype=torch.long).unsqueeze(0)  # (1, T)
+        pos_embed = self.position_embeddings(positions)  # (1, T, C)
+        return x + pos_embed  # (B, T, C)
+
+
+type PositionalEncoding = SinusoidalPositionalEncoding | LearnedPositionalEncoding

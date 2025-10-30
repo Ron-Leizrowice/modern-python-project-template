@@ -1,11 +1,13 @@
+import math
 from dataclasses import dataclass
 
 import torch
 
-from llm_training.model.activations import ActivationFunction
-from llm_training.model.gpt import LlmDimensions
-from llm_training.model.pe import PositionalEncodingType
-from llm_training.model.weight_init import ModelWeightInit, WeightInitConfig, WeightInitType
+from llm_training.model.gpt import LlmArchitecture, LlmDimensions
+from llm_training.model.norm import NormFunction
+from llm_training.model.pe import PositionalEncoder
+from llm_training.model.transformer_blocks import ActivationFunction
+from llm_training.model.weight_init import AttnWeightInitConfig, ModelWeightInit, WeightDistribution, WeightInitConfig
 from llm_training.optimization import (
     DecaySchedule,
     OptimizerConfig,
@@ -28,33 +30,35 @@ class TrainingConfig:
     n_layers: int = 8  # Number of Transformer layers
     d_inner_ratio: int = 4  # Feed-forward network hidden size
     activation_function: ActivationFunction = ActivationFunction.RELU
-    positional_encoding_type: PositionalEncodingType = PositionalEncodingType.SINUSOIDAL
+    positional_encoding_type: PositionalEncoder = PositionalEncoder.LEARNED
     use_ffn_bias: bool = True
-    use_attn_bias: bool = True
-    rms_norm: bool = False
-    tie_encoder_decoder_weights: bool = True
+    use_attn_bias: bool = False
+    norm: NormFunction = NormFunction.LayerNorm
+    tie_encoder_decoder_weights: bool = False
+    gradient_checkpointing: bool = True
 
     ### Weight Init Config ###
     # Embeddings
-    embeddings_dtype: torch.dtype = torch.bfloat16
-    embedding_weights_init: WeightInitType = WeightInitType.NORMAL
-    embedding_weights_range: float = 0.0
-    embedding_weights_std: float = 1.0
+    embeddings_dtype: torch.dtype = torch.float32
+    embedding_weights_init: WeightDistribution = WeightDistribution.NORMAL
+    embedding_weights_range: float = 0.0  # only used for UNIFORM
+    embedding_weights_std: float = 0.02  # onnly used for NORMAL
     # Positional Encoding
     pe_dtype: torch.dtype = torch.float32
-    pe_weights_init: WeightInitType = WeightInitType.SPECTRAL
-    pe_weights_range: float = 0.0
-    pe_weights_std: float = 0.05
+    pe_weights_init: WeightDistribution = WeightDistribution.NORMAL
+    pe_weights_range: float = 0.1  # only used for UNIFORM
+    pe_weights_std: float = 0.02  # only used for NORMAL
     # Feed-forward Layers
     ff_dtype: torch.dtype = torch.float32
-    ff_weights_init: WeightInitType = WeightInitType.SPECTRAL
-    ff_weights_range: float = 0.2
-    ff_weights_std: float = 0.05
+    ff_weights_init: WeightDistribution = WeightDistribution.NORMAL
+    ff_weights_range: float = 0.1  # only used for UNIFORM
+    ff_weights_std: float = 0.02  # only used for NORMAL
     # Attention Layers
     attn_dtype: torch.dtype = torch.float32
-    attn_weights_init: WeightInitType = WeightInitType.SPECTRAL
-    attn_weights_range: float = 0.2
-    attn_weights_std: float = 0.05
+    attn_weights_init: WeightDistribution = WeightDistribution.NORMAL
+    attn_weights_range: float = 0.1  # only used for UNIFORM
+    attn_weights_std: float = 0.02  # only used for NORMAL
+    scale_proj_by_layers: bool = False
 
     # Optimizer Settings
     lr: float = 1e-3  # Base learning rate for the optimizer
@@ -73,8 +77,8 @@ class TrainingConfig:
 
     # Training Hyperparameters
     seq_len: int = 1024  # Maximum sequence length for training examples.")
-    batch_size: int = 8  # Micro-batch size per optimizer step before accumulation.")
-    grad_accum_steps: int = 8  # Steps over which to accumulate gradients before an update.")
+    batch_size: int = 16  # Micro-batch size per optimizer step before accumulation.")
+    grad_accum_steps: int = 4  # Steps over which to accumulate gradients before an update.")
     clip_grad_norm: float = 1.0  # Max L2 norm for global gradient clipping.")
 
     def scheduler(self) -> SchedulerConfig:
@@ -95,8 +99,21 @@ class TrainingConfig:
             beta2=self.beta2,
         )
 
+    def llm_architecture(self) -> LlmArchitecture:
+        return LlmArchitecture(
+            activation_function=self.activation_function,
+            norm=self.norm,
+            positional_encoder=self.positional_encoding_type,
+            use_ff_bias=self.use_ffn_bias,
+            use_attn_bias=self.use_attn_bias,
+            dimensions=self.llm_dimensions(),
+            weight_init=self.weight_init(),
+            use_gradient_checkpointing=self.gradient_checkpointing,
+        )
+
     def llm_dimensions(self) -> LlmDimensions:
         return LlmDimensions(
+            seq_len=self.seq_len,
             vocab_size=self.vocab_size,
             d_model=self.d_model,
             n_heads=self.n_heads,
@@ -105,29 +122,36 @@ class TrainingConfig:
         )
 
     def weight_init(self) -> ModelWeightInit:
+        if self.scale_proj_by_layers:
+            proj_scale_factor = math.sqrt(2 * self.n_layers)
+        else:
+            proj_scale_factor = 1.0
+
         return ModelWeightInit(
             embedding=WeightInitConfig(
                 dtype=self.embeddings_dtype,
-                type=self.embedding_weights_init,
+                dist=self.embedding_weights_init,
                 range=self.embedding_weights_range,
                 std=self.embedding_weights_std,
             ),
             pe=WeightInitConfig(
                 dtype=self.pe_dtype,
-                type=self.pe_weights_init,
+                dist=self.pe_weights_init,
                 range=self.pe_weights_range,
                 std=self.pe_weights_std,
             ),
             ff=WeightInitConfig(
                 dtype=self.ff_dtype,
-                type=self.ff_weights_init,
+                dist=self.ff_weights_init,
                 range=self.ff_weights_range,
                 std=self.ff_weights_std,
             ),
-            attn=WeightInitConfig(
+            attn=AttnWeightInitConfig(
                 dtype=self.attn_dtype,
-                type=self.attn_weights_init,
+                dist=self.attn_weights_init,
                 range=self.attn_weights_range,
                 std=self.attn_weights_std,
+                proj_scale_factor=proj_scale_factor,
             ),
+            tie_encoder_decoder_weights=self.tie_encoder_decoder_weights,
         )
