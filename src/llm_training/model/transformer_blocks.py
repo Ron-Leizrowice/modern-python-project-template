@@ -41,13 +41,13 @@ class MultiHeadSelfAttention(nn.Module):
         B, T, _ = x.size()
 
         # Project to multi-head tensors with shape (B, H, T, Hd)
-        q = self.w_q(x).view(B, T, self.n_heads, self.head_dim)
-        k = self.w_k(x).view(B, T, self.n_heads, self.head_dim)
-        v = self.w_v(x).view(B, T, self.n_heads, self.head_dim)
+        q = self.w_q(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2).contiguous()
+        k = self.w_k(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2).contiguous()
+        v = self.w_v(x).view(B, T, self.n_heads, self.head_dim).transpose(1, 2).contiguous()
 
         # Run SDPA
         attn_output = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-        attn_output = attn_output.transpose(1, 2).flatten(-2)
+        attn_output = attn_output.transpose(1, 2).contiguous().view(B, T, self.n_heads * self.head_dim)
 
         # Apply output projection
         attn_output = self.w_proj(attn_output)

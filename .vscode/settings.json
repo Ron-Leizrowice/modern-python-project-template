@@ -1,72 +1,77 @@
 {
+  // Window Settings
+  "window.zoomLevel": 0.1,
+  "workbench.tree.indent": 20,
+  "workbench.sideBar.location": "right",
   // Editor Settings
+  "editor.minimap.renderCharacters": false,
+  "editor.minimap.size": "fill",
   "editor.formatOnSave": true,
   "editor.inlineSuggest.suppressSuggestions": true,
   "editor.wordWrap": "on",
-  "files.insertFinalNewline": false,
+  "editor.rulers": [120],
+  "editor.unicodeHighlight.ambiguousCharacters": true,
+  "files.insertFinalNewline": true,
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
   "diffEditor.ignoreTrimWhitespace": false,
 
   // Python Settings
+  "python.languageServer": "Pylance",
+  "python.analysis.languageServerMode": "default",
+  "python.analysis.typeCheckingMode": "standard",
+  "vsintellicode.python.completionsEnabled": true,
+  "python.terminal.activateEnvironment": false,
+
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.organizeImports": "never",
+      "source.organizeImports": "always",
       "source.fixAll": "explicit"
-    }
+    },
   },
+
+  "python.analysis.userFileIndexingLimit": -1,
   "python.analysis.packageIndexDepths": [
-    {
-      "name": "",
-      "depth": 1,
-      "includeAllSymbols": true
-    }
+    {"name": "pytorch", "depth": 2, "includeAllSymbols": false}
   ],
-  "python.languageServer": "Pylance",
-
-  "vsintellicode.python.completionsEnabled": true,
-  "python.analysis.inlayHints.callArgumentNames": "off",
-  "python.analysis.inlayHints.functionReturnTypes": false,
   "python.analysis.inlayHints.variableTypes": false,
-  "python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
+  
+  // // Pylance Settings
+  // "python.analysis.inlayHints.callArgumentNames": "partial",
+  // "python.analysis.inlayHints.functionReturnTypes": false,
+  // 
+  // "python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
+  
+  // "python.analysis.autoImportCompletions": false,
+  // "python.analysis.completeFunctionParens": true,
+  // "python.analysis.inlayHints.pytestParameters": true,
+  // "python.analysis.autoFormatStrings": true,
+  // "python.analysis.indexing": true,
+  // "python.analysis.include": ["**/*.py"],
+  // "python.analysis.useLibraryCodeForTypes": true,
+  // "python.analysis.extraPaths": [
+  //   "${workspaceFolder}/.venv/lib/python3.*/site-packages"
+  // ],
+  // "python.analysis.diagnosticMode": "workspace",
+  // "python.analysis.generateWithTypeAnnotation": true,
+  // "python.analysis.showOnlyDirectDependenciesInAutoImport": true,
+  // "python.analysis.typeEvaluation.strictListInference": true,
+  // "python.analysis.typeEvaluation.strictSetInference": true,
+  // "python.analysis.enableTroubleshootMissingImports": true,
 
-  // Python Analysis
-  "python.analysis.typeCheckingMode": "standard",
-  "python.analysis.autoSearchPaths": true,
-  "python.analysis.autoImportCompletions": false,
-  "python.analysis.completeFunctionParens": true,
-  "python.analysis.inlayHints.pytestParameters": true,
-  "python.analysis.autoFormatStrings": true,
-  "python.analysis.indexing": true,
-  "python.analysis.include": ["**/*.py"],
-  "python.analysis.useLibraryCodeForTypes": true,
-  "python.analysis.extraPaths": [
-    "${workspaceFolder}/.venv/lib/python3.*/site-packages"
-  ],
-  "python.analysis.diagnosticMode": "workspace",
-  "python.analysis.generateWithTypeAnnotation": true,
-  "python.analysis.showOnlyDirectDependenciesInAutoImport": true,
-  "python.analysis.typeEvaluation.strictListInference": true,
-  "python.analysis.typeEvaluation.strictSetInference": true,
-  "python.analysis.enableTroubleshootMissingImports": true,
 
   // Python Testing
   "python.testing.pytestEnabled": true,
   "python.testing.pytestArgs": ["-v"],
   "python.testing.unittestEnabled": false,
-  "python.testing.autoTestDiscoverOnSaveEnabled": true,
+  "python.testing.autoTestDiscoverOnSaveEnabled": false,
 
   // Ruff
   "ruff.configuration": "ruff.toml",
   "ruff.lint.ignore": ["F401"],
 
   // Jupyter
-  "jupyter.askForKernelRestart": false,
   "notebook.output.textLineLimit": 128,
   "notebook.output.wordWrap": true,
-
-  "python.terminal.activateEnvironment": false,
-
-  "editor.unicodeHighlight.ambiguousCharacters": true,
-  "continue.enableQuickActions": true
 }

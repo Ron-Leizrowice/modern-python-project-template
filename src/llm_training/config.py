@@ -30,11 +30,11 @@ class TrainingConfig:
     n_layers: int = 8  # Number of Transformer layers
     d_inner_ratio: int = 4  # Feed-forward network hidden size
     activation_function: ActivationFunction = ActivationFunction.RELU
-    positional_encoding_type: PositionalEncoder = PositionalEncoder.LEARNED
+    positional_encoding_type: PositionalEncoder = PositionalEncoder.SINUSOIDAL
     use_ffn_bias: bool = True
     use_attn_bias: bool = False
     norm: NormFunction = NormFunction.LayerNorm
-    tie_encoder_decoder_weights: bool = False
+    tie_encoder_decoder_weights: bool = True
     gradient_checkpointing: bool = True
 
     ### Weight Init Config ###

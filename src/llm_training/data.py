@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 import torch
-from datasets import DatasetDict, load_dataset
+from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from transformers import BatchEncoding, PreTrainedTokenizerFast
@@ -16,7 +16,8 @@ from llm_training.constants import CACHE_DIR, SEED
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
 
-DATASET = "open-phi/textbooks"
+SOURCE = "Salesforce/wikitext"
+DATASET = "wikitext-103-v1"
 
 
 _TOKENIZED_CACHE_DIR = CACHE_DIR / "tokenized_datasets"
@@ -25,25 +26,29 @@ _TOKENIZED_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 @functools.lru_cache(maxsize=1)
 def get_data() -> DatasetDict:
-    """Load and cache the textbooks dataset."""
-    return cast("DatasetDict", load_dataset(DATASET))
+    """Load and cache dataset."""
+    data = load_dataset(SOURCE, DATASET)
+    return cast("DatasetDict", data)
 
 
 def _cache_path(*, tokenizer: PreTrainedTokenizerFast) -> Path:
     return _TOKENIZED_CACHE_DIR / f"{tokenizer.vocab_size}_{tokenizer.model_max_length}_{DATASET.replace('/', '-')}.pt"
 
 
-def _batched(seq: list[TextInput], size: int) -> Generator[list[TextInput]]:
+def _batched(seq: Dataset, size: int) -> Generator[list[TextInput]]:
     for i in range(0, len(seq), size):
         yield seq[i : i + size]
 
 
+def _process_split(data: Dataset, tokenizer:PreTrainedTokenizerFast, batch_size: int = 64):
+    for 
+    
+        
+
+
 def _tokenize_and_chunk_texts(
-    texts: list[str],
-    *,
+    dataset: DatasetDict,
     tokenizer: PreTrainedTokenizerFast,
-    split_name: str,
-    batch_size: int = 64,
 ) -> TensorDataset:
     seq_len = tokenizer.model_max_length
 
@@ -80,13 +85,9 @@ def _tokenize_and_chunk_texts(
 
 
 def _load_data(
-    split: str,
     *,
     tokenizer: PreTrainedTokenizerFast,
-    split_name: str,
 ) -> TensorDataset:
-    data_split = get_data()[split]
-
     cache_path = _cache_path(tokenizer=tokenizer)
 
     if cache_path.exists():
@@ -94,11 +95,10 @@ def _load_data(
         assert isinstance(data, TensorDataset)
         return data
 
-    texts = cast("list[str]", data_split["markdown"])
+    dataset = get_data()
     data = _tokenize_and_chunk_texts(
-        texts,
-        tokenizer=tokenizer,
-        split_name=split_name,
+        dataset,
+        tokenizer
     )
 
     torch.save(data, cache_path)
@@ -109,7 +109,7 @@ def create_dataloader(
     *, tokenizer: PreTrainedTokenizerFast, batch_size: int, grad_accum_steps: int, overfit_single_batch: bool = False
 ) -> DataLoader:
     """Prepare the training data loader."""
-    train_dataset: TensorDataset = _load_data(split="train", tokenizer=tokenizer, split_name="train")
+    train_dataset: TensorDataset = _load_data(tokenizer=tokenizer)
     # Ensure dataset length is an exact multiple of effective batch (for clean grad accumulation)
     effective_batch = batch_size * grad_accum_steps
     total_examples = len(train_dataset)
