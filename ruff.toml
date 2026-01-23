@@ -1,12 +1,44 @@
-target-version = "py313"
-line-length = 120
-exclude = []
+# =============================================================================
+# RUFF CONFIGURATION - Python Linter & Formatter
+# Docs: https://docs.astral.sh/ruff/
+# Rules reference: https://docs.astral.sh/ruff/rules/
+# =============================================================================
 
-format.indent-style = "space"
-format.quote-style = "double"
-format.line-ending = "auto"
-format.skip-magic-trailing-comma = false
-lint.select = [
+# -----------------------------------------------------------------------------
+# GLOBAL SETTINGS
+# -----------------------------------------------------------------------------
+
+# Target Python version for compatibility checks and syntax upgrades.
+target-version = "py314"
+# Directory to store cache files (I prefer not having `.ruff_cache` in the root directory)
+cache-dir = ".cache/ruff"
+# When true, Ruff will not lint/format files ignored by .gitignore.
+respect-gitignore = true
+# Exclude Jupyter notebooks (I assume they're just for testing and not part of the production code)
+extend-exclude = ["**.ipynb"]
+# Maximum line length for formatting (its 2026, our monitors are pretty big, we can spare the pixels)
+line-length = 120
+# Number of spaces per indentation level (used by formatter).
+indent-width = 4
+
+# -----------------------------------------------------------------------------
+# FORMATTER SETTINGS
+# -----------------------------------------------------------------------------
+[format]
+# The space vs tab wars will never end, but I find spaces to cause fewer issues, and its default for black and ruff
+indent-style = "space"
+# I prefer double quotes for consistency, to avoid escaping issues, and to avoid confusion with apostrophes
+quote-style = "double"
+# Auto-detect the appropriate line ending for the platform
+line-ending = "auto"
+# Skip magic trailing comma: allows you to break lists over multiple lines (just add a comma at the end)
+skip-magic-trailing-comma = false
+
+# -----------------------------------------------------------------------------
+# LINTER SETTINGS
+# -----------------------------------------------------------------------------
+[lint]
+select = [
   "ERA",    # [Disallow commented-out code](https://docs.astral.sh/ruff/rules/#eradicate-era)
   "YTT",    # [Ensure correct usage of `sys.version`](https://docs.astral.sh/ruff/rules/#flake8-2020-ytt)
   "ANN",    # [Enforces PEP 3107 – Function Annotations](https://docs.astral.sh/ruff/rules/#flake8-annotations-ann)
@@ -49,31 +81,23 @@ lint.select = [
   "NPY",    # [NumPy specific linting rules](https://docs.astral.sh/ruff/rules/#flake8-numpy-npy)
   "PD",     # [Pandas specific linting rules](https://docs.astral.sh/ruff/rules/#flake8-pandas-pd)
 
-  # Optional (disabled by default)
+  # Optional
   # "S",      # [Opinionated rules from Bandit regarding security](https://docs.astral.sh/ruff/rules/#flake8-bandit-s)
 ]
-lint.ignore = [
+ignore = [
   "COM812",   # Disabled for compatibility with ruff formatter
   "D202",     # Allow blank lines after function docstrings
-  "D213",     # Allow multi-line docstring summary to start at the second line
-  "N806",     # Allow uppercased variable names
-  "N812",     # Allow mixed-case variable names
-  "N815",     # Allow camelCase attributes
-  "S101",     # Allow use of assert statements
+  "D203",     # Do not insert an extra linebreak for class docstrings
+  "D213",     # We want docstrings to start on the first line, not the second.
+  "N815",     # Allow camelCase attributes (useful for creating pydantic models)
+  "S101",     # Allow use of assert statements (unless you are actually using `-O` to optimize your code)
   "SIM108",   # Allow if/else blocks (instead of requiring ternary operations)
-
-  "D100",     # Allow missing docstrings in module
-  "D101",     # Allow missing docstring in public class
-  # "D102",     # Allow missing docstrings in public methods
-  # "D103",     # Allow missing docstring in public function
-  # "D104",     # Allow missing docstrings in public packages
-  # "D105",     # Allow missing docstrings in magic methods
-  # "D107",     # Allow missing docstrings in __init__ methods
-  # "PLR0911",  # Allow large numbers of returns
-  # "PLR0912",  # Allow large numbers of returns
-  # "PLR0913",  # Allow too many arguments
 ]
-lint.pydocstyle.convention = "google"
 
 [lint.per-file-ignores]
-"tests/*" = [ "PLC0415", "D103" ]
+"tests/*" = [ 
+  "ANN201",   # Tests usually return None anyway, we don't need to annotate them
+  "D103",     # Tests probably don't need docstrings
+  "INP001",   # Tests are not part of the package and don't need __init__.py files
+  "PLC0415",  # Lazy imports are fine in tests, and useful to speed up test collection
+]

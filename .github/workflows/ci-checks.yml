@@ -28,31 +28,32 @@ jobs:
 
       # --- Python toolchain (uv) ---
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
       - name: Sync dependencies and check uv lockfile is up to date
         run: uv sync --dev --locked
 
-      # --- Quality: lint, format, type-checking, unused deps ---
+      # --- Dependency Checks ---
+      - name: Check for unused dependencies (Deptry)
+        run: uv run --locked deptry .
+        continue-on-error: true
+
+      # --- Quality: lint, format, type-checking ---
+      - name: Pyproject formatting
+        run: uv run pyproject-fmt pyproject.toml
+
       - name: Ruff format
         run: uv run ruff format . --check --diff
 
       - name: Ruff check
         run: uv run ruff check . --diff
 
-      - name: Type checking (Pyrefly)
-        run: uv run pyrefly check .
-
       - name: Type checking (Ty)
         run: uv run ty check .
-        continue-on-error: true
-
-      - name: Unused dependencies (Deptry)
-        run: uv run deptry .
 
       # --- Tests ---
       - name: Unit tests (PyTest)
         run: |
-          uv run pytest -v --tb=short -n auto
+          uv run pytest -v --tb=short

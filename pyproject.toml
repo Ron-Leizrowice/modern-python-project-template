@@ -1,65 +1,61 @@
+[build-system]
+build-backend = "uv_build"
+requires = [ "uv-build>=0.9" ]
+
 [project]
-name = "data-processor"
+name = "modern-python-template"
 version = "0.1.0"
-description = "An example data-processor using pydantic-ai"
-authors = [
-    { name = "Ron Leizrowice", email = "ron.leizrowice@protonmail.com" },
-]
-license = "MIT"
+description = "A modern python template"
 readme = "README.md"
+license = "MIT"
+authors = [
+  { name = "Ron Leizrowice", email = "ron.leizrowice@protonmail.com" },
+]
 requires-python = ">=3.14"
+classifiers = [ "Programming Language :: Python :: 3 :: Only", "Programming Language :: Python :: 3.14" ]
 dependencies = [
-    "aiofiles>=25",
-    "httpx>=0.28",
-    "logfire[httpx]>=4",
-    "numpy>=2",
-    "orjson>=3",
-    "pandas>=2.3.3",
-    "polars>=1.36.1",
-    "pydantic>=2",
-    "pydantic-ai-slim[openai]>=1.39.0",
-    "pyprojroot>=0.3.0",
-    "python-dotenv>=1.2.1",
-    "rich>=14",
+  "aiofiles>=25",
+  "click>=8",
+  "httpx>=0.28",
+  "logfire[httpx]>=4",
+  "numpy>=2",
+  "orjson>=3",
+  "pandas>=3",
+  "polars>=1.37",
+  "pydantic>=2",
+  "pyprojroot>=0.3",
+  "rich>=14",
 ]
 
-[project.scripts]
-benchmark-classification = "data_processor.cli:benchmark_classification"
-benchmark-extraction = "data_processor.cli:benchmark_extraction"
+scripts.hello-world = "modern_python_template.cli:hello_world"
 
 [dependency-groups]
 dev = [
   "deptry>=0.23",
-  "ipykernel>=7",
-  "jupyter>=1",
-  "pip>=25",
+  "prek>=0.3",
+  "pyproject-fmt>=2",
   "pytest>=8",
   "pytest-asyncio>=1",
-  "pytest-sugar>=1",
-  "pytest-xdist>=3",
   "ruff>=0.14",
-  "ty>=0.0.5",
+  "ty>=0.0.13",
 ]
 
-[tool.uv.sources]
-data-processor = { workspace = true }
+[tool.uv]
+cache-dir = ".cache/uv"
 
-[tool.uv.workspace]
-members = [
-    "data-processor",
-]
+[tool.pyproject-fmt]
+indent = 2
+keep_full_version = false
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [ "tests" ]
+python_files = [ "test_*.py", "*_test.py" ]
+python_classes = [ "Test*", "*Test" ]
 xfail_strict = true
-asyncio_mode = "strict"
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+cache_dir = ".cache/pytest"
 
-[build-system]
-requires = ["uv_build>=0.9"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-name = "data_processor"
-module-root = ""
+[tool.ty.analysis]
+respect-type-ignore-comments = false

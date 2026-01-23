@@ -1,10 +1,10 @@
-# Python 2025 Template • Opinionated Guide
+# Modern Python - An Opinionated Guide
 
-This is my opinionated guide to python development. It should cover most of the major tools and libraries you will need, as well provide reasoning as to why they are currently the best in class. I will also try and address popular alternatives, and explain when they make sense or why I do not reccomend them.
+This is my opinionated guide to python development. It should cover most of the major tools and libraries you will need, as well provide reasoning as to why they are currently the best in class. I will also try and address popular alternatives, and explain when they make sense or why I do not recommend them.
 
 ## Configuration
 
-As of 2025, the standard for all python project configuration is a `pyproject.toml`. Almost all python tooling is now configurable in this file, and is the de-facto standard. Seperate config files should only be introduced when:
+As of 2026, the standard for all python project configuration is a `pyproject.toml`. Almost all python tooling is now configurable in this file, and is the de-facto standard. Separate config files should only be introduced when:
 
 a. The tool does not support configuration via pyproject.toml
 b. The config section would be too long and make the pyproject.toml cumbersome to navigate (e.g. ruff.toml)
@@ -26,9 +26,7 @@ If you've written Rust before, then `uv` is the python equivalent to `cargo`. It
 How to get started:
 
 1. Install `uv` in your preferred manner: <https://docs.astral.sh/uv/getting-started/installation/>
-2. Install the latest version of python: `uv python install 3.13`
-3. Install the python environment with: `uv sync`
-4. Run a script: `uv run hello-world`
+2. Run a script: `uv run hello-world`
 
 It's that easy! For a more in depth guide, check out the documentation at <https://docs.astral.sh/uv/getting-started/>
 
@@ -55,30 +53,22 @@ The case for linters is even stronger than formatters. Linters can catch bugs an
 - Improved code quality: linters can improve code quality by enforcing best practices and catching bugs.
 - Improved collaboration: linters can help ensure that code is consistent across different developers and teams.
 
-## Static Type Checking: `basedpyright` or `pyright` (`ty`?)
+## Static Type Checking: `ty`
 
-When you first start learning python, one of the most common selling points is its simple and flexible type system. In reality, its one of pythons biggest downsides, and huge amounts of time and engineering work have been invested into solving this. In 2025 I argue that its worth devoting the effort to coerce python into a pseudo-statically typed language. The first step to achieving this is `ruff` which will force you to include type hints for function signatures at very least. The second is liberal use of type hints for variables, constants, class attributes, and other objects - ideally even using typed classes via `dataclasses`, `msgspec`, or `pydantic`. Thirdly, and most importantly, you need a static type checker to catch type errors at compile time.
+When you first start learning python, one of the most common selling points is its simple and flexible type system. In reality, its one of pythons biggest downsides, and huge amounts of time and engineering work have been invested into solving this. In 2025 I argue that its worth devoting the effort to coerce python into a pseudo-statically typed language. The first step to achieving this is `ruff` which will force you to include type hints for function signatures at very least. The second is liberal use of type hints for variables, constants, class attributes, and other objects - ideally even using typed classes via `dataclasses`, `msgspec`, or `pydantic`. Thirdly, and most importantly, you need a static type checker to catch type errors at compile time. `ty` is the best option available for this.
 
-### `mypy` vs `basedpyright`
+NOTE: When I first wrote this template I still considered `ty` to be a work in progress, and was hesitant to recommend it. However, it has since matured significantly, and is now my first choice for static type checking, and I recommend it to all python developers. I'm sure there are still some edge cases where it is not perfect, but it is very close to being ready for production-grade projects.
 
-`mypy` is the OG static type checker for python. It (probably) still the most widely used and is still actively maintained. It is still an excellent choice, but suffers from some major issues, many resulting from the choice to write it in pure python, such as its slow performance and lack of type inference. `pyright` was developed by microsoft as an alternative in typescript making it significantly faster and more powerful than `mypy`.
-
-`basedpyright` is a fork of `pyright` that adds numerous new features, along with opinionated defaults that make it easier to use without extensive setup. It also functions as a language server which allows you to use it and see the errors in realtime in your IDE. There is also a `basedmypy` but it is no longer maintained, and its own developers reccomend using `basedpyright` or `ty` (see next section) instead.
-
-The main advantage of `mypy` over `pyright` is the plugin system which provides better type support for third-party libraries and frameworks, like `pydantic`. If speed isn't a concern, and you are running into false-positive type errors with `pyright` then `mypy` is a good choice too.
-
-### `pyrefly` and `ty`
-
-However, there are two new static type checkers you should be aware of, and I encourage you to use - at least as type-checkers if not as language servers. Both are written in rust, which makes them significantly faster.
-
-`ty` is developed by Astral (also the developers of `uv` and `ruff`). It is extremely fast, and looks to be very promising, but even by the teams own admission it is still far from being ready for use in production-grade projects, and its language server is still very immature.
-
-`pyrefly` is developed by facebook/meta, and is much more mature than `ty`. It is significantly slower than `ty`, although both are 10-100x faster than `mypy` or `pyright` anyway. `pyrefly` has experimental support for third-party libraries and frameworks, like `pydantic`, and is being rapidly developed. It will likely be a fully fledged competitor to `mypy` and `pyright` in the very near future.
-
-### Conclusion
-
-If you are working on a production grade project, where code will be deployed and you need strong type-safety guarantees, then `basedpyright` would be my first choice. If your requirements are more relaxed, then I would recommend `pyrefly`. In either case, I would include `ty` as a warning-only type-check in your CI/pre-commit and wait for it to grow and improve.
+`ty` is developed by Astral (also the developers of `uv` and `ruff`). It is (unsurprisingly) written in rust, extremely fast, and highly configurable. The language server is performant, and (relatively) bug-free.
 
 ## Dependency Checker: `deptry`
 
 Not much to say here, you will likely want a tool to help you catch unused dependencies, and `deptry` is the best option available. It's fast (also written in Rust, you may sense a pattern emerging), its accurate, and easy to configure. You can use `fawltydeps` or `py-unused-deps` if you prefer, but they are less accurate or slower.
+
+## Pyproject.toml Linter: `pyproject-fmt`
+
+`pyproject-fmt` is a linter for `pyproject.toml` files. It is a simple tool that will check your `pyproject.toml` file for formatting errors and fix them for you. It is a great way to ensure your `pyproject.toml` file is always ordered and formatted correctly.
+
+## Pre-commit Hooks: `prek`
+
+`prek` is essentially an exact clone of `pre-commit`, but written in rust. Sure, your pre-commit hooks are probably not the most CPU intensive part of your development process, but there is literally no downside to using a faster, more reliable tool.
